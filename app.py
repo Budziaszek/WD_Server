@@ -40,6 +40,7 @@ def getImage():
                 file_image.save(image_path)
                 file_image.stream.seek(0)
                 data_image = file_image.stream.read()
+                print(data_image)
                 # convert bytes of image data to uint8
                 nparr_image = np.frombuffer(data_image, np.uint8)
                 # decode image
@@ -59,7 +60,8 @@ def getImage():
 
                 # TODO make that working and save result (like above)
                 filename_result = "result_" + filename_image
-                # imagePath = predicateImage(image, mask)
+                imagePath = predicateImage(image, mask)
+                print(imagePath)
                 # Obrazek powinien być zapisany tu:
                 # result_path = os.path.join(app.config['UPLOAD_FOLDER'], filename_mask)
                 # Dobrze by było, jakby tą ściżkę przekazać jako argyment predictateImage wtedy tu by było tylko
