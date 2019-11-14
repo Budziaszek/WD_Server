@@ -94,12 +94,10 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
-def predicateImage(image, mask, disp_test_images=False, save_out_images=False):
+def predicateImage(image, image_path, mask, mask_path, filename_result, dir_result):
     # Load test data
     im_shape = (512, 256)
     csv_path = dataset_bow_legs_dir + '/' + 'idx_test.csv'
-    # Path to the folder with images. Images will be read from path + path_from_csv
-    path = csv_path[:csv_path.rfind('/')] + '/'
     df = pd.read_csv(csv_path)
 
     # Images sent by client
@@ -161,39 +159,12 @@ def predicateImage(image, mask, disp_test_images=False, save_out_images=False):
         sub_dir_file_name = df.iloc[i][0]
         file_name = sub_dir_file_name[9:]
         sub_dir_name = sub_dir_file_name[:8]
-        if disp_test_images == True:
-            print('\n')
-            print('sub_dir_name={}  file_name={}\n\n'.format(sub_dir_name, file_name))
-
-        if save_out_images == True:
-            dir_img_mask = 'results/bow-legs_test/{}'.format(sub_dir_name)
-            if not os.path.exists(dir_img_mask):
-                os.makedirs(dir_img_mask)
-            img_name = '{}/{}'.format(dir_img_mask, file_name)
-            if disp_test_images == True:
-                print('img_name={}\n'.format(img_name))
-
-            cv2.imwrite(img_name, pr_openned)
 
         file_name_no_ext = os.path.splitext(file_name)[0]
-        file_name_in = dataset_bow_legs_dir + '/' + sub_dir_name + '/' + file_name_no_ext + '_mask' + '.png'  # dataset_bow-legs/mask_001/img_0001_mask.png
-        if disp_test_images == True:
-            print('file_name_in={}\n'.format(file_name_in))
-        if save_out_images == True:
+        file_name_in = mask_path
 
-            file_name_out = 'results/bow-legs_test' + '/' + sub_dir_name + '/' + file_name_no_ext + '_mask_manual' + '.png'  # results/bow-legs_test/mask_006/img_0006_mask_manual.png
-
-            img_exists = os.path.isfile(file_name_in)
-            if img_exists == False:
-                print('{} does not exists\n'.format(file_name_in))
-                sys.exit("exiting ...")
-
-            shutil.copy2(file_name_in, file_name_out)
-
-        im_name_x_ray_original_size = data_bow_legs_dir + '/' + 'x-ray/' + file_name  # data_bow-legs/x-ray/img_0001.png
-        im_name_x_ray_original_size_test = data_bow_legs_dir + '/' + 'x-ray_test/' + file_name  # data_bow-legs/x-ray/img_0001.png
-        if disp_test_images == True:
-            print('im_name_x_ray_original_size = {}\n'.format(im_name_x_ray_original_size_test))
+        im_name_x_ray_original_size = image_path
+        im_name_x_ray_original_size_test = image_path
 
         im_x_ray_original_size = cv2.imread(im_name_x_ray_original_size_test, cv2.IMREAD_GRAYSCALE)
         if im_x_ray_original_size is None:  ## Check for invalid input
@@ -224,29 +195,7 @@ def predicateImage(image, mask, disp_test_images=False, save_out_images=False):
 
         # Unet output
         pr_openned_4x = cv2.resize(pr_openned, new_shape)
-        im_name_pr_openned_4x = '{}/{}'.format(dir_img_x_ray_4x, file_name_no_ext + '_mask_Unet' + '.png')
-        if disp_test_images == True:
-            print('im_name_pr_openned_4x={}\n'.format(im_name_pr_openned_4x))
-        pathToImageForReturn = im_name_pr_openned_4x
-        cv2.imwrite(im_name_pr_openned_4x, pr_openned_4x)
-
-        gt_4x = cv2.resize(img_as_ubyte(gt), new_shape)
-
-        gt_4x = gt_4x > 0.5
-        pr_openned_4x = pr_openned_4x > 0.5
-        im_x_ray_4x_ = im_x_ray_4x / 255.0
-        if disp_test_images == True:
-            print('img.max()={} gt.max()={} pr.max()={}\n'.format(im_x_ray_4x_.max(), gt_4x.max(), pr_openned_4x.max()))
-        im_masked_4x = masked(im_x_ray_4x, gt_4x, pr_openned_4x, 0.5)  # img.max()=1.0 gt.max()=True pr.max()=True
-
-        if save_out_images == True:
-            dir_im_masked_4x = 'results/bow-legs_masked_4x'
-            if not os.path.exists(dir_im_masked_4x):
-                os.makedirs(dir_im_masked_4x)
-            im_name_masked_4x = '{}/{}'.format(dir_im_masked_4x, file_name)
-
-            im_masked_4x = img_as_ubyte(im_masked_4x)
-            io.imsave(im_name_masked_4x, im_masked_4x)
+        cv2.imwrite(filename_result, pr_openned_4x)
 
         ious[i] = IoU(gt, pr)
         dices[i] = Dice(gt, pr)
@@ -266,5 +215,3 @@ def predicateImage(image, mask, disp_test_images=False, save_out_images=False):
 
     with open("results/bow-legs_IoU_Dice.txt", "a", newline="\r\n") as f:
         print('Mean IoU:{:.4f} Mean Dice:{:.4f}'.format(ious.mean(), dices.mean()), file=f)
-
-    return pathToImageForReturn

@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, send_file, render_template, redirect, url_for, flash, send_from_directory
+from flask import Flask, request, render_template, redirect, url_for, flash, send_from_directory
 import numpy as np
 import cv2
 from werkzeug.utils import secure_filename
@@ -38,11 +38,10 @@ def getImage():
                 filename_image = secure_filename(file_image.filename)
                 image_path = os.path.join(app.config['UPLOAD_FOLDER'], filename_image)
                 file_image.save(image_path)
+                file = open(image_path)
                 file_image.stream.seek(0)
-                data_image = file_image.stream.read()
-                print(data_image)
-                # convert bytes of image data to uint8
-                nparr_image = np.frombuffer(data_image, np.uint8)
+                # convert bfile to uint8
+                nparr_image = np.fromfile(file, np.uint8)
                 # decode image
                 image = cv2.imdecode(nparr_image, cv2.IMREAD_REDUCED_GRAYSCALE_8)
                 image = cv2.resize(image, (256, 512))
@@ -50,34 +49,21 @@ def getImage():
                 filename_mask = secure_filename(file_mask.filename)
                 mask_path = os.path.join(app.config['UPLOAD_FOLDER'], filename_mask)
                 file_mask.save(mask_path)
+                file = open(mask_path)
                 file_mask.stream.seek(0)
-                data_mask = file_mask.stream.read()
-                # convert bytes of image data to uint8
-                nparr_mask = np.frombuffer(data_mask, np.uint8)
+                # convert file to uint8
+                nparr_mask = np.fromfile(file, np.uint8)
                 # decode mask
                 mask = cv2.imdecode(nparr_mask, cv2.IMREAD_REDUCED_GRAYSCALE_8)
                 mask = cv2.resize(mask, (256, 512))
 
-                # TODO make that working and save result (like above)
                 filename_result = "result_" + filename_image
-                imagePath = predicateImage(image, mask)
-                print(imagePath)
-                # Obrazek powinien być zapisany tu:
-                # result_path = os.path.join(app.config['UPLOAD_FOLDER'], filename_mask)
-                # Dobrze by było, jakby tą ściżkę przekazać jako argyment predictateImage wtedy tu by było tylko
-                # wywołanie tej funkcji i przekazanie nazwy pliku przy redirect
+                path_result = os.path.join(app.config['UPLOAD_FOLDER'], filename_result)
+                predicateImage(image, image_path, mask, mask_path, path_result, app.config['UPLOAD_FOLDER'])
                 return redirect(url_for('displayResults', image_name=filename_image, mask_name=filename_mask,
                                         result_name=filename_result))
     else:
         return render_template('load_image.html', title='Home')
-
-
-# @app.route('/show/<filename>')
-# def uploaded_files(image_name, mask_name, result_name):
-#     mimage = 'http://127.0.0.1:5000/uploads/' + image_name
-#     mmask = 'http://127.0.0.1:5000/uploads/' + mask_name
-#     mresult = 'http://127.0.0.1:5000/uploads/' + result_name
-#     return render_template('template.html', image=mimage, mask=mmask, result=mresult)
 
 
 @app.route('/uploads/<filename>')

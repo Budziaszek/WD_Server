@@ -13,7 +13,7 @@ def loadData(image, mask, im_shape):
     X.append(img)
     y.append(mask)
     X = np.array(X)
-
+    y = np.array(y)
     X -= X.mean()
     X /= X.std()
 
