@@ -6,14 +6,13 @@ def loadData(image, mask, im_shape):
     """This function loads data preprocessed with ... """
     X, y = [], []
 
-    img = transform.resize(image, im_shape,  mode='constant')
+    img = transform.resize(image, im_shape, mode='constant')
     img = np.expand_dims(img, -1)
     mask = transform.resize(mask, im_shape, mode='constant')
     mask = np.expand_dims(mask, -1)
     X.append(img)
     y.append(mask)
     X = np.array(X)
-    y = np.array(y)
 
     X -= X.mean()
     X /= X.std()

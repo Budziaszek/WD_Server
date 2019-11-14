@@ -1,7 +1,8 @@
 import os
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]=""
-os.environ["CUDA_VISIBLE_DEVICES"]='-1'
+
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["CUDA_VISIBLE_DEVICES"] = '-1'
 
 from load_data import loadData, loadDataOrig
 from model.losses import bce_dice_loss, dice_coeff
@@ -15,8 +16,8 @@ from skimage import morphology, color, io, exposure
 
 from skimage import img_as_ubyte
 
-import os.path			# from os.path import exists
-import shutil			# shutil.copy2
+import os.path  # from os.path import exists
+import shutil  # shutil.copy2
 
 import cv2
 
@@ -24,17 +25,17 @@ import argparse
 
 import sys
 
-
-data_bow_legs_dir    = 'data_bow-legs'
+data_bow_legs_dir = 'data_bow-legs'
 dataset_bow_legs_dir = 'dataset_bow-legs'
-
 
 import keras.backend as K
 
 import pandas as pd
 
-def binary_crossentropy_custom( y_true, y_pred):
+
+def binary_crossentropy_custom(y_true, y_pred):
     return K.mean(K.binary_crossentropy(y_true, y_pred), axis=-1)
+
 
 def IoU(y_true, y_pred):
     """Returns Intersection over Union score for ground truth and predicted masks."""
@@ -45,6 +46,7 @@ def IoU(y_true, y_pred):
     union = np.logical_or(y_true_f, y_pred_f).sum()
     return (intersection + 1) * 1. / (union + 1)
 
+
 def Dice(y_true, y_pred):
     """Returns Dice Similarity Coefficient for ground truth and predicted masks."""
     assert y_true.dtype == bool and y_pred.dtype == bool
@@ -52,6 +54,7 @@ def Dice(y_true, y_pred):
     y_pred_f = y_pred.flatten()
     intersection = np.logical_and(y_true_f, y_pred_f).sum()
     return (2. * intersection + 1.) / (y_true.sum() + y_pred.sum() + 1.)
+
 
 def masked(img, gt, mask, alpha=1):
     """Returns image with GT lung field outlined with red, 
@@ -74,11 +77,13 @@ def masked(img, gt, mask, alpha=1):
     img_masked = color.hsv2rgb(img_hsv)
     return img_masked
 
+
 def remove_small_regions(img, size):
     """Morphologically removes small (less than size) connected regions of 0s or 1s."""
     img = morphology.remove_small_objects(img, size)
     img = morphology.remove_small_holes(img, size)
     return img
+
 
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -86,10 +91,10 @@ def str2bool(v):
     elif v.lower() in ('no', 'false', 'f', 'n', '0'):
         return False
     else:
-        raise argparse.ArgumentTypeError('Boolean value expected.')	
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 
 def predicateImage(image, mask, disp_test_images=False, save_out_images=False):
-
     # Load test data
     im_shape = (512, 256)
     csv_path = dataset_bow_legs_dir + '/' + 'idx_test.csv'
@@ -100,35 +105,34 @@ def predicateImage(image, mask, disp_test_images=False, save_out_images=False):
     # Images sent by client
     X, y = loadData(image, mask, im_shape)
     # Images saved on the server
-    #X, y = loadDataOrig(df, path, im_shape)
+    # X, y = loadDataOrig(df, path, im_shape)
 
     print('\n[*]loadData() finished\n')
 
     n_test = X.shape[0]
     inp_shape = X[0].shape
 
-
     # Load model
     model_weights = "models/trained_model.hdf5"
-    print ('model_weights ' + model_weights)
+    print('model_weights ' + model_weights)
     # load json and create model
     json_file = open('models/model_bk.json', 'r')
     loaded_model_json = json_file.read()
     json_file.close()
     loaded_model = model_from_json(loaded_model_json)
-    print("model_from_json() finished ...")	
+    print("model_from_json() finished ...")
 
     # load weights into new model
-    loaded_model.load_weights( model_weights)
+    loaded_model.load_weights(model_weights)
     print("Loaded model from disk")
- 
+
     # evaluate loaded model on test data
-    UNet = loaded_model	
-    model = loaded_model	
-    model.compile(optimizer=RMSprop(lr=0.0001), loss=bce_dice_loss, metrics=[dice_coeff])	
+    UNet = loaded_model
+    model = loaded_model
+    model.compile(optimizer=RMSprop(lr=0.0001), loss=bce_dice_loss, metrics=[dice_coeff])
     print("model compiled ")
 
-    ious  = np.zeros(n_test)
+    ious = np.zeros(n_test)
     dices = np.zeros(n_test)
 
     i = 0
@@ -138,7 +142,7 @@ def predicateImage(image, mask, disp_test_images=False, save_out_images=False):
     num_imgs = X.shape[0]
     for ii in range(num_imgs):
         xx_ = X[ii, :, :, :]
-        yy_ = y[ii, :, :, :]		
+        yy_ = y[ii, :, :, :]
         xx = xx_[None, ...]
         yy = yy_[None, ...]
         pred = UNet.predict(xx)[..., 0].reshape(inp_shape[:2])
@@ -148,119 +152,119 @@ def predicateImage(image, mask, disp_test_images=False, save_out_images=False):
         gt = mask > 0.5
         pr = pred > 0.5
 
-        pr_bin = img_as_ubyte( pr)
-        pr_openned = morphology.opening( pr_bin)	
+        pr_bin = img_as_ubyte(pr)
+        pr_openned = morphology.opening(pr_bin)
 
         # Remove regions smaller than 2% of the image
         pr = remove_small_regions(pr, 0.005 * np.prod(im_shape))
 
         sub_dir_file_name = df.iloc[i][0]
         file_name = sub_dir_file_name[9:]
-        sub_dir_name = 	sub_dir_file_name[:8]
-        if disp_test_images==True:
-            print('\n')		
-            print('sub_dir_name={}  file_name={}\n\n'.format(sub_dir_name, file_name))		
+        sub_dir_name = sub_dir_file_name[:8]
+        if disp_test_images == True:
+            print('\n')
+            print('sub_dir_name={}  file_name={}\n\n'.format(sub_dir_name, file_name))
 
-        if save_out_images	== True:
-            dir_img_mask = 'results/bow-legs_test/{}'.format(sub_dir_name)		
-            if not os.path.exists( dir_img_mask):
-                os.makedirs( dir_img_mask)			
+        if save_out_images == True:
+            dir_img_mask = 'results/bow-legs_test/{}'.format(sub_dir_name)
+            if not os.path.exists(dir_img_mask):
+                os.makedirs(dir_img_mask)
             img_name = '{}/{}'.format(dir_img_mask, file_name)
-            if disp_test_images==True:
-                print('img_name={}\n'.format(img_name))		
+            if disp_test_images == True:
+                print('img_name={}\n'.format(img_name))
 
-            cv2.imwrite( img_name, pr_openned)
+            cv2.imwrite(img_name, pr_openned)
 
         file_name_no_ext = os.path.splitext(file_name)[0]
-        file_name_in  = dataset_bow_legs_dir + '/' + sub_dir_name +  '/' + file_name_no_ext + '_mask' + '.png'  # dataset_bow-legs/mask_001/img_0001_mask.png 
-        if disp_test_images==True:
-            print('file_name_in={}\n'.format(file_name_in))		
-        if save_out_images	== True:
+        file_name_in = dataset_bow_legs_dir + '/' + sub_dir_name + '/' + file_name_no_ext + '_mask' + '.png'  # dataset_bow-legs/mask_001/img_0001_mask.png
+        if disp_test_images == True:
+            print('file_name_in={}\n'.format(file_name_in))
+        if save_out_images == True:
 
-            file_name_out = 'results/bow-legs_test' + '/' + sub_dir_name +  '/' + file_name_no_ext + '_mask_manual' + '.png' # results/bow-legs_test/mask_006/img_0006_mask_manual.png
+            file_name_out = 'results/bow-legs_test' + '/' + sub_dir_name + '/' + file_name_no_ext + '_mask_manual' + '.png'  # results/bow-legs_test/mask_006/img_0006_mask_manual.png
 
-            img_exists = os.path.isfile(file_name_in)		
+            img_exists = os.path.isfile(file_name_in)
             if img_exists == False:
                 print('{} does not exists\n'.format(file_name_in))
                 sys.exit("exiting ...")
 
-            shutil.copy2( file_name_in, file_name_out) 		  	
+            shutil.copy2(file_name_in, file_name_out)
 
-        im_name_x_ray_original_size      = data_bow_legs_dir + '/' + 'x-ray/' + file_name				# data_bow-legs/x-ray/img_0001.png
-        im_name_x_ray_original_size_test = data_bow_legs_dir + '/' + 'x-ray_test/' + file_name			# data_bow-legs/x-ray/img_0001.png		
-        if disp_test_images==True:
+        im_name_x_ray_original_size = data_bow_legs_dir + '/' + 'x-ray/' + file_name  # data_bow-legs/x-ray/img_0001.png
+        im_name_x_ray_original_size_test = data_bow_legs_dir + '/' + 'x-ray_test/' + file_name  # data_bow-legs/x-ray/img_0001.png
+        if disp_test_images == True:
             print('im_name_x_ray_original_size = {}\n'.format(im_name_x_ray_original_size_test))
 
-        im_x_ray_original_size = cv2.imread( im_name_x_ray_original_size_test, cv2.IMREAD_GRAYSCALE)
-        if im_x_ray_original_size is None: 					## Check for invalid input
-            print( "Could not open or find the image: {}. ".format( im_name_x_ray_original_size_test))		
-            shutil.copy2( im_name_x_ray_original_size, im_name_x_ray_original_size_test)
-            print( 'Made a copy from {}\n'.format( im_name_x_ray_original_size))			
-            im_x_ray_original_size = cv2.imread( im_name_x_ray_original_size_test, cv2.IMREAD_GRAYSCALE)
+        im_x_ray_original_size = cv2.imread(im_name_x_ray_original_size_test, cv2.IMREAD_GRAYSCALE)
+        if im_x_ray_original_size is None:  ## Check for invalid input
+            print("Could not open or find the image: {}. ".format(im_name_x_ray_original_size_test))
+            shutil.copy2(im_name_x_ray_original_size, im_name_x_ray_original_size_test)
+            print('Made a copy from {}\n'.format(im_name_x_ray_original_size))
+            im_x_ray_original_size = cv2.imread(im_name_x_ray_original_size_test, cv2.IMREAD_GRAYSCALE)
 
-        height,width = im_x_ray_original_size.shape[:2]							# height, width  -- original image size		
+        height, width = im_x_ray_original_size.shape[:2]  # height, width  -- original image size
 
         ratio = float(height) / width
 
-        new_shape = ( 4*256, int(4*256*ratio))		
+        new_shape = (4 * 256, int(4 * 256 * ratio))
 
-        im_x_ray_4x = cv2.resize( im_x_ray_original_size, new_shape)
+        im_x_ray_4x = cv2.resize(im_x_ray_original_size, new_shape)
 
         dir_img_x_ray_4x = 'results/bow-legs_test_4x/{}'.format(sub_dir_name)
-        if not os.path.exists( dir_img_x_ray_4x):
-            os.makedirs( dir_img_x_ray_4x)	 		
-        im_name_x_ray_4x = '{}/{}'.format( dir_img_x_ray_4x, file_name)
-        cv2.imwrite( im_name_x_ray_4x, im_x_ray_4x)		
+        if not os.path.exists(dir_img_x_ray_4x):
+            os.makedirs(dir_img_x_ray_4x)
+        im_name_x_ray_4x = '{}/{}'.format(dir_img_x_ray_4x, file_name)
+        cv2.imwrite(im_name_x_ray_4x, im_x_ray_4x)
 
         # mask	
-        im_mask_original_size = cv2.imread( file_name_in, cv2.IMREAD_GRAYSCALE)
-        im_mask_4x = cv2.resize( im_mask_original_size, new_shape)
-        im_name_mask_4x = '{}/{}'.format( dir_img_x_ray_4x, '/' + file_name_no_ext + '_mask_manual' + '.png')
-        cv2.imwrite( im_name_mask_4x, im_mask_4x) 
+        im_mask_original_size = cv2.imread(file_name_in, cv2.IMREAD_GRAYSCALE)
+        im_mask_4x = cv2.resize(im_mask_original_size, new_shape)
+        im_name_mask_4x = '{}/{}'.format(dir_img_x_ray_4x, '/' + file_name_no_ext + '_mask_manual' + '.png')
+        cv2.imwrite(im_name_mask_4x, im_mask_4x)
 
         # Unet output
-        pr_openned_4x = cv2.resize( pr_openned, new_shape)
-        im_name_pr_openned_4x = '{}/{}'.format( dir_img_x_ray_4x, file_name_no_ext + '_mask_Unet' + '.png')
-        if disp_test_images==True:
+        pr_openned_4x = cv2.resize(pr_openned, new_shape)
+        im_name_pr_openned_4x = '{}/{}'.format(dir_img_x_ray_4x, file_name_no_ext + '_mask_Unet' + '.png')
+        if disp_test_images == True:
             print('im_name_pr_openned_4x={}\n'.format(im_name_pr_openned_4x))
         pathToImageForReturn = im_name_pr_openned_4x
-        cv2.imwrite( im_name_pr_openned_4x, pr_openned_4x)
+        cv2.imwrite(im_name_pr_openned_4x, pr_openned_4x)
 
-        gt_4x = cv2.resize( img_as_ubyte(gt), new_shape)		
+        gt_4x = cv2.resize(img_as_ubyte(gt), new_shape)
 
         gt_4x = gt_4x > 0.5
         pr_openned_4x = pr_openned_4x > 0.5
-        im_x_ray_4x_ = im_x_ray_4x/255.0
-        if disp_test_images==True:
-            print('img.max()={} gt.max()={} pr.max()={}\n'.format( im_x_ray_4x_.max(), gt_4x.max(), pr_openned_4x.max() ))		
-        im_masked_4x = masked( im_x_ray_4x, gt_4x, pr_openned_4x, 0.5)			# img.max()=1.0 gt.max()=True pr.max()=True
+        im_x_ray_4x_ = im_x_ray_4x / 255.0
+        if disp_test_images == True:
+            print('img.max()={} gt.max()={} pr.max()={}\n'.format(im_x_ray_4x_.max(), gt_4x.max(), pr_openned_4x.max()))
+        im_masked_4x = masked(im_x_ray_4x, gt_4x, pr_openned_4x, 0.5)  # img.max()=1.0 gt.max()=True pr.max()=True
 
-        if save_out_images	== True:
+        if save_out_images == True:
             dir_im_masked_4x = 'results/bow-legs_masked_4x'
-            if not os.path.exists( dir_im_masked_4x):
-                os.makedirs( dir_im_masked_4x)	 		
-            im_name_masked_4x = '{}/{}'.format( dir_im_masked_4x, file_name)
+            if not os.path.exists(dir_im_masked_4x):
+                os.makedirs(dir_im_masked_4x)
+            im_name_masked_4x = '{}/{}'.format(dir_im_masked_4x, file_name)
 
-            im_masked_4x = img_as_ubyte( im_masked_4x)				
-            io.imsave( im_name_masked_4x, im_masked_4x)
+            im_masked_4x = img_as_ubyte(im_masked_4x)
+            io.imsave(im_name_masked_4x, im_masked_4x)
 
-        ious[i]  = IoU ( gt, pr)
-        dices[i] = Dice( gt, pr)
-        print( '{}  {:.4f} {:.4f}'.format( df.iloc[i][0], ious[i], dices[i] ))
+        ious[i] = IoU(gt, pr)
+        dices[i] = Dice(gt, pr)
+        print('{}  {:.4f} {:.4f}'.format(df.iloc[i][0], ious[i], dices[i]))
 
         with open("results/bow-legs_results.txt", "a", newline="\r\n") as f:
-            print( '{}  {:.4f} {:.4f}'.format( df.iloc[i][0], ious[i], dices[i] ), file=f)	
+            print('{}  {:.4f} {:.4f}'.format(df.iloc[i][0], ious[i], dices[i]), file=f)
 
         i += 1
         if i == n_test:
             break
 
-    print( 'Mean IoU:{:.4f} Mean Dice:{:.4f}'.format( ious.mean(), dices.mean() ))
+    print('Mean IoU:{:.4f} Mean Dice:{:.4f}'.format(ious.mean(), dices.mean()))
     with open("results/bow-legs_results.txt", "a", newline="\r\n") as f:
-        print( 'Mean IoU:{:.4f} Mean Dice:{:.4f}'.format( ious.mean(), dices.mean() ), file=f)	
-        print( '\n', file=f)
+        print('Mean IoU:{:.4f} Mean Dice:{:.4f}'.format(ious.mean(), dices.mean()), file=f)
+        print('\n', file=f)
 
     with open("results/bow-legs_IoU_Dice.txt", "a", newline="\r\n") as f:
-        print( 'Mean IoU:{:.4f} Mean Dice:{:.4f}'.format( ious.mean(), dices.mean() ), file=f)
+        print('Mean IoU:{:.4f} Mean Dice:{:.4f}'.format(ious.mean(), dices.mean()), file=f)
 
     return pathToImageForReturn
